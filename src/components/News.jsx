@@ -80,7 +80,7 @@ const News = (props) => {
 };
 
 News.defaultProps = {
-  countyr: "us",
+  country: "us",
   pageSize: 8,
   category: "general",
 };
