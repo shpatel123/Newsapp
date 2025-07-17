@@ -12,7 +12,7 @@ const News = (props) => {
 
   const updateNews = async () => {
     props.setProgress(10);
-    const url = `https://newsapi.org/v2/top-headlines?country=${props.country}&category=${props.category}&apiKey=d451521163d6459389ef0a37a0768b5f&page=${page}&pageSize=${props.pageSize}`;
+    const url = `https://newsapi.org/v2/top-headlines?country=${props.country}&category=${props.category}&apiKey=d451521163d6459389ef0a37a0768b5f&page=1&pageSize=${props.pageSize}`;
     setLoading(true);
     let data = await fetch(url);
     props.setProgress(30);
@@ -20,29 +20,32 @@ const News = (props) => {
     props.setProgress(70);
     setArticle(parsedData.articles);
     setTotalResults(parsedData.totalResults);
+    setPage(1); // Reset page to 1 when updating news
     setLoading(false);
     props.setProgress(100);
   };
 
   useEffect(() => {
-    document.title = `${props.category} -NewsMonkey`;
+    document.title = `${props.category} - NewsMonkey`;
     updateNews();
-  }, []);
+    // eslint-disable-next-line
+  }, [props.category]); // Add props.category as dependency
 
-  //infinite scrolling
+  // Infinite scrolling
   const fetchMoreData = async () => {
-    setPage(page+1);
-    const url = `https://newsapi.org/v2/top-headlines?country=${props.country}&category=${props.category}&apiKey=d451521163d6459389ef0a37a0768b5f&page=${page}&pageSize=${props.pageSize}`;
+    const nextPage = page + 1;
+    const url = `https://newsapi.org/v2/top-headlines?country=${props.country}&category=${props.category}&apiKey=d451521163d6459389ef0a37a0768b5f&page=${nextPage}&pageSize=${props.pageSize}`;
     let data = await fetch(url);
     let parsedData = await data.json();
     setArticle(articles.concat(parsedData.articles));
     setTotalResults(parsedData.totalResults);
+    setPage(nextPage); // Update page after successful fetch
   };
 
   return (
     <>
       <h1 className="text-center" style={{ margin: "40px 0px", marginTop: "90px" }}>
-        NewsMonkey - Top {props.category} headline
+        NewsMonkey - Top {props.category} headlines
       </h1>  
       {loading && <Spinner />}
       <InfiniteScroll
@@ -84,9 +87,12 @@ News.defaultProps = {
   pageSize: 8,
   category: "general",
 };
+
 News.propTypes = {
   country: PropTypes.string,
   pageSize: PropTypes.number,
+  category: PropTypes.string,
+  setProgress: PropTypes.func,
 };
 
 export default News;
