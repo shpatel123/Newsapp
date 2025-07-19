@@ -7,58 +7,164 @@ import InfiniteScroll from "react-infinite-scroll-component";
 const News = (props) => {
   const [articles, setArticle] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
+  const [nextPage, setNextPage] = useState(null); // Use nextPage token instead of page number
   const [totalResults, setTotalResults] = useState(0);
+  const [error, setError] = useState(null);
 
   const updateNews = async () => {
-    props.setProgress(10);
-    const url = `https://newsapi.org/v2/top-headlines?country=${props.country}&category=${props.category}&apiKey=d451521163d6459389ef0a37a0768b5f&page=1&pageSize=${props.pageSize}`;
-    setLoading(true);
-    let data = await fetch(url);
-    props.setProgress(30);
-    let parsedData = await data.json();
-    props.setProgress(70);
-    setArticle(parsedData.articles);
-    setTotalResults(parsedData.totalResults);
-    setPage(1); // Reset page to 1 when updating news
-    setLoading(false);
-    props.setProgress(100);
+    try {
+      props.setProgress(10);
+      
+      const apiKey = "pub_4e9f6cdf19834f0aa55199dcc4227a05";
+      
+      // Use consistent endpoint - stick with /latest
+      let url = `https://newsdata.io/api/1/latest?apikey=${apiKey}&language=en&size=${props.pageSize}`;
+      
+      // Add country filter
+      if (props.country && props.country !== 'us') {
+        url += `&country=${props.country}`;
+      }
+      
+      // Add category filter
+      if (props.category && props.category !== 'general') {
+        const categoryMap = {
+          'business': 'business',
+          'entertainment': 'entertainment',
+          'health': 'health', 
+          'science': 'science',
+          'sports': 'sports',
+          'technology': 'technology',
+          'general': ''
+        };
+        
+        const mappedCategory = categoryMap[props.category];
+        if (mappedCategory) {
+          url += `&category=${mappedCategory}`;
+        }
+      }
+      
+      setLoading(true);
+      setError(null);
+      
+      const response = await fetch(url);
+      props.setProgress(30);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const parsedData = await response.json();
+      props.setProgress(70);
+      
+      if (parsedData.status === "success" && parsedData.results) {
+        setArticle(parsedData.results);
+        setTotalResults(parsedData.totalResults || parsedData.results.length);
+        setNextPage(parsedData.nextPage || null); // Store the nextPage token
+      } else {
+        throw new Error(parsedData.message || "Failed to fetch news data");
+      }
+      
+      setLoading(false);
+      props.setProgress(100);
+    } catch (error) {
+      console.error("Error fetching news:", error);
+      setError(error.message);
+      setLoading(false);
+      props.setProgress(100);
+    }
   };
 
   useEffect(() => {
     document.title = `${props.category} - NewsMonkey`;
     updateNews();
     // eslint-disable-next-line
-  }, [props.category]); // Add props.category as dependency
+  }, [props.category, props.country]); // Add props.country as dependency
 
-  // Infinite scrolling
   const fetchMoreData = async () => {
-    const nextPage = page + 1;
-    const url = `https://newsapi.org/v2/top-headlines?country=${props.country}&category=${props.category}&apiKey=d451521163d6459389ef0a37a0768b5f&page=${nextPage}&pageSize=${props.pageSize}`;
-    let data = await fetch(url);
-    let parsedData = await data.json();
-    setArticle(articles.concat(parsedData.articles));
-    setTotalResults(parsedData.totalResults);
-    setPage(nextPage); // Update page after successful fetch
+    // Don't fetch if there's no nextPage token
+    if (!nextPage) {
+      return;
+    }
+    
+    try {
+      const apiKey = "pub_4e9f6cdf19834f0aa55199dcc4227a05";
+      
+      // Use the same endpoint and URL construction as updateNews
+      let url = `https://newsdata.io/api/1/latest?apikey=${apiKey}&language=en&size=${props.pageSize}&page=${nextPage}`;
+      
+      // Add country filter
+      if (props.country && props.country !== 'us') {
+        url += `&country=${props.country}`;
+      }
+      
+      // Add category filter
+      if (props.category && props.category !== 'general') {
+        const categoryMap = {
+          'business': 'business',
+          'entertainment': 'entertainment',
+          'health': 'health', 
+          'science': 'science',
+          'sports': 'sports',
+          'technology': 'technology',
+          'general': ''
+        };
+        
+        const mappedCategory = categoryMap[props.category];
+        if (mappedCategory) {
+          url += `&category=${mappedCategory}`;
+        }
+      }
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const parsedData = await response.json();
+      
+      if (parsedData.status === "success" && parsedData.results) {
+        setArticle(prevArticles => [...prevArticles, ...parsedData.results]);
+        setNextPage(parsedData.nextPage || null); // Update nextPage token
+      }
+    } catch (error) {
+      console.error("Error fetching more data:", error);
+      // Set nextPage to null to stop further requests on error
+      setNextPage(null);
+    }
   };
+
+  // Error display component
+  if (error) {
+    return (
+      <div className="container mt-5">
+        <div className="alert alert-danger" role="alert">
+          <h4 className="alert-heading">Error Loading News</h4>
+          <p>Unable to fetch news articles: {error}</p>
+          <hr />
+          <p className="mb-0">Please try refreshing the page or check your internet connection.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
       <h1 className="text-center" style={{ margin: "40px 0px", marginTop: "90px" }}>
         NewsMonkey - Top {props.category} headlines
       </h1>  
-      {loading && <Spinner />}
+      {loading && articles.length === 0 && <Spinner />}
       <InfiniteScroll
         dataLength={articles.length}
         next={fetchMoreData}
-        hasMore={articles.length !== totalResults}
+        hasMore={nextPage !== null} // Check if nextPage token exists
         loader={<Spinner />}
       >
         <div className="container">
           <div className="row">
-            {articles.map((element) => {
+            {articles && articles.length > 0 ? articles.map((element, index) => {
               return (
-                <div className="col-md-4" key={element.url}>
+                <div className="col-md-4" key={element.article_id || element.link || index}>
                   <NewsItem
                     title={element.title ? element.title.slice(0, 50) : ""}
                     description={
@@ -66,15 +172,21 @@ const News = (props) => {
                         ? element.description.slice(0, 90)
                         : ""
                     }
-                    imageUrl={element.urlToImage}
-                    newsUrl={element.url}
-                    author={element.author}
-                    date={element.publishedAt}
-                    source={element.source.name}
+                    imageUrl={element.image_url}
+                    newsUrl={element.link}
+                    author={element.creator ? element.creator[0] : "Unknown"}
+                    date={element.pubDate}
+                    source={element.source_id}
                   />
                 </div>
               );
-            })}
+            }) : (
+              !loading && (
+                <div className="col-12">
+                  <p className="text-center">No articles found for this category.</p>
+                </div>
+              )
+            )}
           </div>
         </div>
       </InfiniteScroll>
